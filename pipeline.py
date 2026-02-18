@@ -40,7 +40,7 @@ def print_help():
 	print('')
 	print('Notes:')
 	print('  - If "--" is omitted, no extra args are passed to recon.py (defaults are used).')
-	print('  - If no --bids-filter is provided (and no -f/--filenames), pipeline runs all complete BIDS groups found.')
+	print('  - If no explicit -f/--filenames is provided, pipeline runs all complete BIDS groups matching filters.')
 	print('  - All original preprocess.py and recon.py arguments are supported via passthrough.')
 
 
@@ -78,7 +78,7 @@ def extract_bids_filters(args):
 			continue
 		if token.startswith('--bids-filter='):
 			raw_filters.append(token.split('=', 1)[1])
-		ii += 1
+			ii += 1
 	return raw_filters
 
 def parse_filter_key_value(raw):
@@ -201,7 +201,9 @@ def main():
 
 	preprocess_args, recon_args = split_passthrough_args(argv)
 	raw_filters = extract_bids_filters(preprocess_args)
-	should_expand_groups = len(raw_filters) == 0 and not has_filenames_arg(preprocess_args)
+	# Expand into all matching groups unless explicit filenames are provided.
+	# This includes cases with filters (e.g., subject/session without rec).
+	should_expand_groups = not has_filenames_arg(preprocess_args)
 
 	if should_expand_groups:
 		discovered = discover_group_filter_sets(preprocess_args)

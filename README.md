@@ -152,7 +152,7 @@ docker run --rm -it \
   -- --ggr -w 0.03
 ```
 
-When `pipeline.py` is run without any `--bids-filter` (and without explicit `-f/--filenames`), it automatically discovers and reconstructs **all** complete `acq-{sag,cor,ax}` T2w groups found in the BIDS repository.
+When `pipeline.py` is run without explicit `-f/--filenames`, it automatically discovers and reconstructs **all** complete `acq-{sag,cor,ax}` T2w groups matching your `--bids-filter` selection (or all groups if no filters are given).
 
 For non-BIDS inputs, you can still pass explicit files with `-f`.
 ```console
