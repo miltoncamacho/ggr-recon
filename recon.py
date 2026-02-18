@@ -8,6 +8,7 @@ from scipy import signal
 import glob
 import json
 import os
+import sys
 import time
 import argparse
 
@@ -74,7 +75,7 @@ os.makedirs(out_path, exist_ok=True)
 if not os.path.isdir(working_path):
 	print('No temp data provided')
 	print('Run preprocess.py to generate the data')
-	exit()
+	sys.exit(1)
 
 geo = loadmat(working_path + 'geo_property.mat')
 sz = geo['sz'][0]
@@ -90,7 +91,7 @@ n_imgs = len(img_fn)
 
 if n_imgs == 0:
 	print('No image data found!')
-	exit()
+	sys.exit(1)
 
 console = Console()
 # =========== Print summary of the execution =============
@@ -136,10 +137,10 @@ with progress:
 	mean_fns = glob.glob(working_path + 'img_mean.*')
 	if len(mean_fns) == 0:
 		console.print('[red bold]Error: No "img_mean" file found in the temp folder. Run [i]preprocess.py[/i] first.')
-		exit()
+		sys.exit(1)
 	if len(mean_fns) > 1:
 		console.print('[red bold]Error: Please check your temp folder to make sure there is only [i][u]ONE[/u][/i] file named "img_mean", and then run [i]recon.py[/i] again.')
-		exit()
+		sys.exit(1)
 
 	mean_fn = mean_fns[0]
 	ext = mean_fn[len(working_path + 'img_mean'):]

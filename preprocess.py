@@ -6,6 +6,7 @@ from scipy.io import loadmat, savemat
 from scipy import signal
 import json
 import os
+import sys
 import time
 import argparse
 import pathlib
@@ -146,11 +147,29 @@ def collect_candidate_groups(file_records):
 
 	return groups
 
+def group_priority(group):
+	score = 0
+	if group['entities'].get('datatype') == 'anat':
+		score += 4
+	paths = sorted(group['acq_map'].values())
+	# Prefer shallower paths when equivalent groups are duplicated.
+	score -= int(sum(path.count(os.sep) for path in paths) / max(1, len(paths)))
+	return score
+
 def choose_complete_group(groups):
 	complete_groups = []
 	for group in groups.values():
 		if all(acq in group['acq_map'] for acq in ACQ_ORDER):
 			complete_groups.append(group)
+
+	# Collapse duplicate logical groups that differ only by index context/path.
+	dedup_complete = {}
+	for group in complete_groups:
+		label = format_group_label(group['entities'])
+		existing = dedup_complete.get(label)
+		if existing is None or group_priority(group) > group_priority(existing):
+			dedup_complete[label] = group
+	complete_groups = list(dedup_complete.values())
 
 	if len(complete_groups) == 0:
 		raise ValueError('no complete acq-{sag,cor,ax} set found for suffix T2w')
@@ -260,6 +279,8 @@ def discover_bids_inputs(search_path, extra_filters):
 	}
 	if 'acquisition' not in extra_filters:
 		filters['acquisition'] = ACQ_ORDER
+	if 'datatype' not in extra_filters:
+		filters['datatype'] = 'anat'
 	filters.update(extra_filters)
 
 	bids_files = layout.get(return_type='object', **filters)
@@ -343,7 +364,7 @@ try:
 	bids_filters = parse_bids_filters(args.bids_filter)
 except ValueError as exc:
 	print('Error:', str(exc))
-	exit()
+	sys.exit(1)
 
 bids_info = None
 if flist is None or len(flist) == 0:
@@ -351,28 +372,28 @@ if flist is None or len(flist) == 0:
 		flist, bids_info = discover_bids_inputs(path, bids_filters)
 	except (ImportError, ValueError) as exc:
 		print('Error:', str(exc))
-		exit()
+		sys.exit(1)
 	if flist is None:
 		print('No BIDS image data found at:', path)
 		print('Expected at least one complete acq-{sag,cor,ax}_T2w set per subject[/session]')
 		print('Use --bids-filter to disambiguate if multiple sets exist')
-		exit()
+		sys.exit(1)
 else:
 	try:
 		flist, bids_info = select_bids_inputs_from_filenames(flist)
 	except (ImportError, ValueError) as exc:
 		print('Error:', str(exc))
-		exit()
+		sys.exit(1)
 
 n_imgs = len(flist)
 if n_imgs == 0:
 	print('No image data found!')
-	exit()
+	sys.exit(1)
 
 if sz != None and (len(sz) != 3 or np.any(np.array(sz) <= 0)):
 	print('SIZE =', sz)
 	print('Error: SIZE should comprise 3 positive integers')
-	exit()
+	sys.exit(1)
 
 print('path : ' + str(path))
 print('temp_path : ' + str(working_path))
@@ -464,7 +485,7 @@ if resample_only:
 	console.print('See it at: [green italic]%s' \
 			% out_path + img_fn[0] + '_x' + img_ext[0])
 	console.print('\n\n')
-	exit()
+	sys.exit(0)
 
 imwrite(img0x, working_path + img_fn[0] + '_x' + img_ext[0])
 
