@@ -2,3 +2,5 @@ numpy
 scipy
 rich
 pybids
+SimpleITK
+flywheel-sdk
