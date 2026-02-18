@@ -72,9 +72,11 @@ RUN mkdir -p /opt/GGR-recon
 COPY utils.py /opt/GGR-recon
 COPY preprocess.py /opt/GGR-recon
 COPY recon.py /opt/GGR-recon
+COPY pipeline.py /opt/GGR-recon
 ENV PATH ${PATH}:/opt/GGR-recon
 RUN chmod a+rx /opt/GGR-recon/preprocess.py
 RUN chmod a+rx /opt/GGR-recon/recon.py
+RUN chmod a+rx /opt/GGR-recon/pipeline.py
 
 WORKDIR /opt/GGR-recon
 
@@ -89,4 +91,3 @@ CMD echo $msg; find /opt/GGR-recon/ -type f -name "*.py"; echo $msg
 #  --no-cache=true --progress=plain \
 #  -t crl/ggr-recon:latest -f Dockerfile .
 #
-

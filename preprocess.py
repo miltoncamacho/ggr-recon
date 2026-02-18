@@ -30,6 +30,7 @@ FILTER_KEY_ALIASES = {
 	'sub': 'subject',
 	'ses': 'session',
 	'acq': 'acquisition',
+	'rec': 'reconstruction',
 }
 ENTITY_NAME_TO_LABEL = {
 	'subject': 'sub',
@@ -155,11 +156,11 @@ def choose_complete_group(groups):
 		raise ValueError('no complete acq-{sag,cor,ax} set found for suffix T2w')
 	if len(complete_groups) > 1:
 		labels = sorted([format_group_label(group['entities']) for group in complete_groups])
-		raise ValueError('multiple complete BIDS groups found: %s. Use --bids-filter to select one.' % ', '.join(labels))
+		raise ValueError('multiple complete BIDS groups found: %s. Use --bids-filter (e.g., rec=filtered or rec=orig) to select one.' % ', '.join(labels))
 
 	return complete_groups[0]
 
-def build_bids_output_name(reference_file):
+def build_bids_output_name(reference_file, source_reconstruction=None):
 	name = os.path.basename(reference_file)
 	if name.endswith('.nii.gz'):
 		ext = '.nii.gz'
@@ -173,11 +174,20 @@ def build_bids_output_name(reference_file):
 	if len(tokens) < 2 or tokens[-1] != 'T2w':
 		return None
 
+	rec_value = None
+	if source_reconstruction is not None:
+		rec_value = str(source_reconstruction)
+
 	out_tokens = []
 	for token in tokens[:-1]:
 		if token.startswith('acq-') or token.startswith('rec-'):
+			if token.startswith('rec-') and rec_value is None:
+				rec_value = token.split('-', 1)[1]
 			continue
 		out_tokens.append(token)
+	if rec_value is not None and rec_value != '':
+		# Preserve source rec-* information without conflicting with rec-superesolution.
+		out_tokens.append('acq-' + rec_value)
 	out_tokens.append('rec-superesolution')
 	out_tokens.append('T2w')
 	return '_'.join(out_tokens) + ext
@@ -210,7 +220,9 @@ def build_bids_info(group, flist, root_path=None):
 	if ses is not None:
 		output_rel_dir = os.path.join(sub, ses, 'anat')
 
-	output_name = build_bids_output_name(group['acq_map'].get('sag', flist[0]))
+	output_name = build_bids_output_name(
+			group['acq_map'].get('sag', flist[0]),
+			source_reconstruction=entities.get('reconstruction'))
 	if output_name is None:
 		if ses is None:
 			output_name = '%s_rec-superesolution_T2w.nii.gz' % sub

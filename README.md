@@ -72,6 +72,11 @@ docker run -it --rm --name ggr crl/ggr-recon preprocess.py -h
 docker run -it --rm --name ggr crl/ggr-recon recon.py -h
 ```
 
+#### Docker mode
+```console
+docker run -it --rm --name ggr crl/ggr-recon pipeline.py -h
+```
+
 ### Input and output
 For BIDS workflows, `preprocess.py` auto-discovers input files using **pybids** and BIDS filters.
 Inputs must include a complete `acq-{sag,cor,ax}` set with suffix `T2w` (`*.nii` or `*.nii.gz`) for one BIDS group.
@@ -96,6 +101,12 @@ Example:
 - input: `sub-001_ses-01_run-1_acq-sag_T2w.nii.gz`
 - output: `sub-001_ses-01_run-1_rec-superesolution_T2w.nii.gz`
 
+If inputs use existing `rec-*` variants (for example `rec-filtered` and `rec-orig`), the source `rec` value is carried into output as `acq-*` to avoid filename collisions:
+- input: `sub-2983_ses-1a_acq-sag_rec-filtered_T2w.nii.gz`
+- output: `sub-2983_ses-1a_acq-filtered_rec-superesolution_T2w.nii.gz`
+- input: `sub-2983_ses-1a_acq-sag_rec-orig_T2w.nii.gz`
+- output: `sub-2983_ses-1a_acq-orig_rec-superesolution_T2w.nii.gz`
+
 A matching sidecar JSON is also generated beside the output NIfTI with reconstruction metadata and source-image references.
 
 Run preprocessing in docker:
@@ -117,11 +128,28 @@ docker run -it --rm --name ggr-recon \
   --bids-filter subject=001 --bids-filter session=01
 ```
 
+You can also select a specific reconstruction variant:
+```console
+--bids-filter rec=filtered
+```
+
 Then run reconstruction:
 ```console
 docker run --rm -it --volume /your/temp/folder:/opt/GGR-recon/temp \
   --volume /your/recons/folder:/opt/GGR-recon/recons \
   crl/ggr-recon recon.py --temp_path /opt/GGR-recon/temp --out_path /opt/GGR-recon/recons --ggr -w 0.03
+```
+
+Or run preprocessing + reconstruction in one step with `pipeline.py`:
+```console
+docker run --rm -it \
+  --volume /your/data/folder:/opt/GGR-recon/data \
+  --volume /your/temp/folder:/opt/GGR-recon/temp \
+  --volume /your/recons/folder:/opt/GGR-recon/recons \
+  crl/ggr-recon pipeline.py \
+  --path /opt/GGR-recon/data --temp_path /opt/GGR-recon/temp --out_path /opt/GGR-recon/recons \
+  --bids-filter subject=2983 --bids-filter rec=filtered \
+  -- --ggr -w 0.03
 ```
 
 For non-BIDS inputs, you can still pass explicit files with `-f`.
