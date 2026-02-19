@@ -67,6 +67,31 @@ def parse_preprocess_path(args):
 def has_filenames_arg(args):
 	return '-f' in args or '--filenames' in args
 
+def has_option(args, names):
+	for ii, token in enumerate(args):
+		if token in names:
+			return True
+		for name in names:
+			if token.startswith(name + '='):
+				return True
+	return False
+
+def get_last_option_value(args, names):
+	value = None
+	ii = 0
+	while ii < len(args):
+		token = args[ii]
+		if token in names and ii + 1 < len(args):
+			value = args[ii + 1]
+			ii += 2
+			continue
+		for name in names:
+			if token.startswith(name + '='):
+				value = token.split('=', 1)[1]
+				break
+		ii += 1
+	return value
+
 def extract_bids_filters(args):
 	raw_filters = []
 	ii = 0
@@ -170,12 +195,27 @@ def discover_group_filter_sets(preprocess_args):
 	return complete
 
 def run_single(preprocess_args, recon_args):
+	final_recon_args = list(recon_args)
+	preprocess_temp_names = ['-t', '--temp_path', '--working_path', '-w']
+	recon_temp_names = ['-t', '--temp_path', '--working_path']
+	out_names = ['-o', '--out_path']
+
+	if not has_option(final_recon_args, recon_temp_names):
+		temp_value = get_last_option_value(preprocess_args, preprocess_temp_names)
+		if temp_value is not None:
+			final_recon_args = ['--temp_path', temp_value] + final_recon_args
+
+	if not has_option(final_recon_args, out_names):
+		out_value = get_last_option_value(preprocess_args, out_names)
+		if out_value is not None:
+			final_recon_args = ['--out_path', out_value] + final_recon_args
+
 	rc = run_script('preprocess.py', preprocess_args)
 	if rc != 0:
 		print('[pipeline] preprocess.py failed with exit code %d' % rc)
 		return rc
 
-	rc = run_script('recon.py', recon_args)
+	rc = run_script('recon.py', final_recon_args)
 	if rc != 0:
 		print('[pipeline] recon.py failed with exit code %d' % rc)
 		return rc

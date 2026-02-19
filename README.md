@@ -153,6 +153,7 @@ docker run --rm -it \
 ```
 
 When `pipeline.py` is run without explicit `-f/--filenames`, it automatically discovers and reconstructs **all** complete `acq-{sag,cor,ax}` T2w groups matching your `--bids-filter` selection (or all groups if no filters are given).
+`pipeline.py` also forwards `--temp_path` and `--out_path` from preprocess arguments to recon if not explicitly provided after `--`.
 
 For non-BIDS inputs, you can still pass explicit files with `-f`.
 ```console
