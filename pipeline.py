@@ -103,7 +103,7 @@ def extract_bids_filters(args):
 			continue
 		if token.startswith('--bids-filter='):
 			raw_filters.append(token.split('=', 1)[1])
-			ii += 1
+		ii += 1
 	return raw_filters
 
 def parse_filter_key_value(raw):
