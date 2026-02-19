@@ -77,93 +77,119 @@ docker run -it --rm --name ggr crl/ggr-recon recon.py -h
 docker run -it --rm --name ggr crl/ggr-recon pipeline.py -h
 ```
 
-### Input and output
-For BIDS workflows, `preprocess.py` auto-discovers input files using **pybids** and BIDS filters.
-Inputs must include a complete `acq-{sag,cor,ax}` set with suffix `T2w` (`*.nii` or `*.nii.gz`) for one BIDS group.
-Additional BIDS entities are supported (for example `run`, `desc`, `part`, `rec`, ...), and session is optional.
+### Repository example data
+This repository ships two example layouts with the same phantom images:
 
-In docker mode, mount your BIDS data folder to `/opt/GGR-recon/data`:
-```console
--v /your/data/folder:/opt/GGR-recon/data
+```text
+data/
+├── acr-axial/
+│   ├── ax_t2_phantom.nii.gz
+│   └── ax_t2_phantom.json
+├── acr-coronal/
+│   ├── cor_t2_phantom.nii.gz
+│   └── cor_t2_phantom.json
+└── acr-sagittal/
+    ├── sag_t2_phantom.nii.gz
+    └── sag_t2_phantom.json
+
+data-bids-example/
+├── dataset_description.json
+└── sub-phantom/
+    └── ses-01/
+        └── anat/
+            ├── sub-phantom_ses-01_acq-ax_T2w.nii.gz
+            ├── sub-phantom_ses-01_acq-ax_T2w.json
+            ├── sub-phantom_ses-01_acq-cor_T2w.nii.gz
+            ├── sub-phantom_ses-01_acq-cor_T2w.json
+            ├── sub-phantom_ses-01_acq-sag_T2w.nii.gz
+            └── sub-phantom_ses-01_acq-sag_T2w.json
 ```
 
-Intermediate files are written to `/opt/GGR-recon/temp` and final reconstructions are written to `/opt/GGR-recon/recons`.
+### Input and output
+`preprocess.py` supports:
 
-Outputs are written into the matching BIDS anatomical folder:
+1. BIDS auto-discovery using `pybids` (`--path` + optional `--bids-filter KEY=VALUE`)
+2. Explicit input files with `-f/--filenames` (legacy non-BIDS mode)
+
+For BIDS mode, pass the dataset root with `--path`. A reconstructable group requires a complete `acq-{sag,cor,ax}` set with suffix `T2w` (`.nii` or `.nii.gz`) within a single BIDS entity group. Additional entities (`run`, `rec`, `desc`, and others) are supported and used for grouping.
+
+Intermediate files are written to `--temp_path` (default: `/opt/GGR-recon/temp/`).
+Final outputs are written under `--out_path` in the matching anatomical folder:
 
 `sub-xxx[/ses-xx]/anat/`
 
-The output filename is derived from the selected BIDS input name:
-- `acq-*` (and existing `rec-*`) are removed
+Output naming:
+
+- `acq-*` and existing `rec-*` are removed from the input stem
 - `rec-superesolution` is inserted before `_T2w`
+- a sidecar JSON is created next to the output NIfTI
 
 Example:
+
 - input: `sub-001_ses-01_run-1_acq-sag_T2w.nii.gz`
 - output: `sub-001_ses-01_run-1_rec-superesolution_T2w.nii.gz`
 
-If inputs use existing `rec-*` variants (for example `rec-filtered` and `rec-orig`), the source `rec` value is carried into output as `acq-*` to avoid filename collisions:
-- input: `sub-2983_ses-1a_acq-sag_rec-filtered_T2w.nii.gz`
-- output: `sub-2983_ses-1a_acq-filtered_rec-superesolution_T2w.nii.gz`
-- input: `sub-2983_ses-1a_acq-sag_rec-orig_T2w.nii.gz`
-- output: `sub-2983_ses-1a_acq-orig_rec-superesolution_T2w.nii.gz`
+If source inputs are split by `rec-*` (for example `rec-filtered` and `rec-orig`), the source `rec` value is copied into `acq-*` to avoid output collisions:
 
-A matching sidecar JSON is also generated beside the output NIfTI with reconstruction metadata and source-image references.
+- `..._acq-sag_rec-filtered_T2w.nii.gz` -> `..._acq-filtered_rec-superesolution_T2w.nii.gz`
+- `..._acq-sag_rec-orig_T2w.nii.gz` -> `..._acq-orig_rec-superesolution_T2w.nii.gz`
 
-Run preprocessing in docker:
+Run preprocessing only:
+
 ```console
 docker run -it --rm --name ggr-recon \
-  -v /your/data/folder:/opt/GGR-recon/data \
-  -v /your/temp/folder:/opt/GGR-recon/temp \
-  -v /your/recons/folder:/opt/GGR-recon/recons \
-  your-ggr-tag preprocess.py --path /opt/GGR-recon/data --temp_path /opt/GGR-recon/temp --out_path /opt/GGR-recon/recons
-```
-
-Example with a BIDS filter (single subject/session):
-```console
-docker run -it --rm --name ggr-recon \
-  -v /your/data/folder:/opt/GGR-recon/data \
-  -v /your/temp/folder:/opt/GGR-recon/temp \
-  -v /your/recons/folder:/opt/GGR-recon/recons \
-  your-ggr-tag preprocess.py --path /opt/GGR-recon/data --temp_path /opt/GGR-recon/temp --out_path /opt/GGR-recon/recons \
+  -v /your/bids:/bids \
+  -v /your/temp:/temp \
+  crl/ggr-recon preprocess.py \
+  --path /bids --temp_path /temp --out_path /bids \
   --bids-filter subject=001 --bids-filter session=01
 ```
 
-You can also select a specific reconstruction variant:
-```console
---bids-filter rec=filtered
-```
+Run reconstruction only:
 
-Then run reconstruction:
-```console
-docker run --rm -it --volume /your/temp/folder:/opt/GGR-recon/temp \
-  --volume /your/recons/folder:/opt/GGR-recon/recons \
-  crl/ggr-recon recon.py --temp_path /opt/GGR-recon/temp --out_path /opt/GGR-recon/recons --ggr -w 0.03
-```
-
-Or run preprocessing + reconstruction in one step with `pipeline.py`:
 ```console
 docker run --rm -it \
-  --volume /your/data/folder:/opt/GGR-recon/data \
-  --volume /your/temp/folder:/opt/GGR-recon/temp \
-  --volume /your/recons/folder:/opt/GGR-recon/recons \
+  -v /your/temp:/temp \
+  -v /your/bids:/bids \
+  crl/ggr-recon recon.py \
+  --temp_path /temp --out_path /bids --ggr -w 0.03
+```
+
+Run preprocessing + reconstruction with `pipeline.py`:
+
+```console
+docker run --rm -it \
+  -v /your/bids:/bids \
+  -v /your/temp:/temp \
   crl/ggr-recon pipeline.py \
-  --path /opt/GGR-recon/data --temp_path /opt/GGR-recon/temp --out_path /opt/GGR-recon/recons \
-  --bids-filter subject=2983 --bids-filter rec=filtered \
+  --path /bids --temp_path /temp --out_path /bids \
+  --bids-filter subject=2983 --bids-filter session=1a \
   -- --ggr -w 0.03
 ```
 
-When `pipeline.py` is run without explicit `-f/--filenames`, it automatically discovers and reconstructs **all** complete `acq-{sag,cor,ax}` T2w groups matching your `--bids-filter` selection (or all groups if no filters are given).
-`pipeline.py` also forwards `--temp_path` and `--out_path` from preprocess arguments to recon if not explicitly provided after `--`.
+When no explicit `-f/--filenames` is provided, `pipeline.py` reconstructs all complete BIDS groups that match your filters. If you do not pass a `rec` filter, all matching `rec-*` groups are processed.
 
-For non-BIDS inputs, you can still pass explicit files with `-f`.
+### BIDS phantom example
+Run the bundled BIDS example directly from this repository:
+
 ```console
-docker run --rm -it --volume `pwd`:/data crl/ggr-recon \
-  preprocess.py --temp_path /data/temp --out_path /data/recons \
-  -f /data/acr-axial/ax_t2_phantom.nii.gz /data/acr-coronal/cor_t2_phantom.nii.gz /data/acr-sagittal/sag_t2_phantom.nii.gz
+docker run --rm -it \
+  -v `pwd`/data-bids-example:/bids \
+  -v `pwd`/temp:/temp \
+  crl/ggr-recon pipeline.py \
+  --path /bids --temp_path /temp --out_path /bids \
+  --bids-filter subject=phantom --bids-filter session=01 \
+  -- --ggr -w 0.03
 ```
 
-### Example reconstruction with phantom data
-The bundled phantom example is not in BIDS format, so use explicit `-f` inputs:
+This writes:
+
+- `data-bids-example/sub-phantom/ses-01/anat/sub-phantom_ses-01_rec-superesolution_T2w.nii.gz`
+- `data-bids-example/sub-phantom/ses-01/anat/sub-phantom_ses-01_rec-superesolution_T2w.json`
+
+### Non-BIDS phantom example
+The original `data/` folder is still usable with explicit `-f` inputs:
+
 ```console
 docker run --rm -it --volume `pwd`:/data crl/ggr-recon \
   preprocess.py --temp_path /data/temp --out_path /data/recons \
@@ -171,7 +197,7 @@ docker run --rm -it --volume `pwd`:/data crl/ggr-recon \
 
 docker run --rm -it \
   --volume `pwd`/temp:/opt/GGR-recon/temp \
-  --volume `pwd`/recons:/opt/GGR-recon/recons  \
+  --volume `pwd`/recons:/opt/GGR-recon/recons \
   crl/ggr-recon recon.py --temp_path /opt/GGR-recon/temp --out_path /opt/GGR-recon/recons --ggr -w 0.03
 ```
 
